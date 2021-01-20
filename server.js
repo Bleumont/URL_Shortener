@@ -37,6 +37,7 @@ app.post(
   bodyParser.urlencoded({ extended: false }),
   (req, res) => {
     let url = req.body.url;
+    let resObj = {};
     resObj['original_url'] = url;
     if (!url.match(/^[http://www.]/gi)) {
       res.json({ error: 'invalid url' });
