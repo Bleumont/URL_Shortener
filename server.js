@@ -12,17 +12,12 @@ mongoose.connect(process.env.DB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
-console.log(process.env.DB_URI);
-console.log(process.env.PORT);
 const urlSchema = new mongoose.Schema({
   original_url: String,
   short_url: Number,
 });
 
 let URLSS = mongoose.model('URLSS', urlSchema);
-
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
 
 app.use(cors());
 
@@ -37,28 +32,48 @@ app.get('/api/hello', function (req, res) {
   res.json({ greeting: 'hello API' });
 });
 
-app.post('/api/shortener/new', (req, res) => {
-  let url = dns.lookup(req.body.url, (err, adress) => {
-    if (err) console.log(err);
-  });
-
-  if (url) {
-    let newrl = new URLSS({
-      original_url: req.body.url,
-      short_url: Math.floor(Math.random() * 1000),
-    });
-    newrl.save((err, url) => {
-      if (err) console.log(err);
-    });
-    res.json({ original_url: newrl.original_url, short_url: newrl.short_url });
+app.post(
+  '/api/shorturl/new',
+  bodyParser.urlencoded({ extended: false }),
+  (req, res) => {
+    let url = req.body.url;
+    resObj['original_url'] = url;
+    if (!url.match(/^[http://www.]/gi)) {
+      res.json({ error: 'invalid url' });
+      return;
+    }
+    let urlshort = 1;
+    URLSS.findOne({})
+      .sort({ short_url: 'desc' })
+      .exec((err, result) => {
+        if (!err && result != 'undefined') {
+          urlshort = result.short_url + 1;
+        }
+        if (!err) {
+          URLSS.findOneAndUpdate(
+            { original_url: url },
+            { original_url: url, short_url: urlshort },
+            { new: true, upsert: true },
+            (err, urlsaved) => {
+              if (!err) {
+                resObj['short_url'] = urlsaved.short_url;
+                res.json(resObj);
+              }
+            }
+          );
+        }
+      });
   }
-  res.json({ error: 'invalid url' });
-});
+);
 
-app.get('/api/shorturl/:id', async (req, res) => {
-  console.log(req.params.id);
-  url = await URLSS.find({ short_url: +req.params.id }).exec();
-  res.redirect(`https://${url[0].original_url}`);
+app.get('/api/shorturl/:id', (req, res) => {
+  URLSS.findOne({ short_url: +req.params.id }, (err, result) => {
+    if (!err && result != 'undefined') {
+      res.redirect(result.original_url);
+    } else {
+      res.json('URL not found!');
+    }
+  });
 });
 
 app.listen(port, function () {
